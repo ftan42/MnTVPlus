@@ -10438,6 +10438,23 @@ function AdminPageClient() {
     });
   };
 
+  // 新增: 重载配置处理函数
+  const handleReloadConfig = async () => {
+    await withLoading('reloadConfig', async () => {
+      try {
+        const response = await fetch(`/api/admin/reload`);
+        if (!response.ok) {
+          throw new Error(`重载失败: ${response.status}`);
+        }
+        showSuccess('重载成功，配置缓存已清除！', showAlert);
+        await fetchConfig();
+      } catch (err) {
+        showError(err instanceof Error ? err.message : '重载失败', showAlert);
+        throw err;
+      }
+    });
+  };
+
   if (loading) {
     return (
       <PageLayout activePath='/admin'>
@@ -10475,12 +10492,20 @@ function AdminPageClient() {
               管理员设置
             </h1>
             {config && role === 'owner' && (
-              <button
-                onClick={handleResetConfig}
-                className={`px-3 py-1 text-xs rounded-md transition-colors ${buttonStyles.dangerSmall}`}
-              >
-                重置配置
-              </button>
+              <>
+                <button
+                  onClick={handleResetConfig}
+                  className={`px-3 py-1 text-xs rounded-md transition-colors ${buttonStyles.dangerSmall}`}
+                >
+                  重置配置
+                </button>
+                <button
+                  onClick={handleReloadConfig}
+                  className={`px-3 py-1 text-xs rounded-md transition-colors ${buttonStyles.primarySmall}`}
+                >
+                  重载配置
+                </button>
+              </>
             )}
           </div>
 
