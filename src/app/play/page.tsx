@@ -245,14 +245,8 @@ function PlayPageClient() {
           console.log('使用缓存的去广告代码');
         }
 
-        // 第一步：先只获取版本号，检查是否需要更新
-        const versionResponse = await fetch('/api/ad-filter');
-        if (!versionResponse.ok) {
-          console.warn('获取去广告代码版本失败，使用缓存');
-          return;
-        }
-
-        const { version } = await versionResponse.json();
+        // 从 window.RUNTIME_CONFIG 获取版本号
+        const version = (window as any).RUNTIME_CONFIG?.CUSTOM_AD_FILTER_VERSION || 0;
 
         // 如果版本号为 0，说明去广告未设置，清空缓存并跳过
         if (version === 0) {
@@ -267,7 +261,7 @@ function PlayPageClient() {
         if (!cachedVersion || parseInt(cachedVersion) !== version) {
           console.log('检测到去广告代码更新（版本 ' + version + '），获取最新代码');
 
-          // 第二步：获取完整代码
+          // 获取完整代码
           const fullResponse = await fetch('/api/ad-filter?full=true');
           if (!fullResponse.ok) {
             console.warn('获取完整去广告代码失败，使用缓存');
@@ -2499,37 +2493,51 @@ function PlayPageClient() {
     // 默认去广告规则
     if (!m3u8Content) return '';
 
+    // 广告关键字列表
+    const adKeywords = [
+      'sponsor',
+      '/ad/',
+      '/ads/',
+      'advert',
+      'advertisement',
+      '/adjump',
+      'redtraffic'
+    ];
+
     // 按行分割M3U8内容
     const lines = m3u8Content.split('\n');
     const filteredLines = [];
 
-    let nextdelete = false;
-    for (let i = 0; i < lines.length; i++) {
+    let i = 0;
+    while (i < lines.length) {
       const line = lines[i];
 
-      if (nextdelete) {
-        nextdelete = false;
+      // 跳过 #EXT-X-DISCONTINUITY 标识
+      if (line.includes('#EXT-X-DISCONTINUITY')) {
+        i++;
         continue;
       }
 
-      // 只过滤#EXT-X-DISCONTINUITY标识
-      if (!line.includes('#EXT-X-DISCONTINUITY')) {
-        if (
-          type == 'ruyi' &&
-          (line.includes('EXTINF:5.640000') ||
-            line.includes('EXTINF:2.960000') ||
-            line.includes('EXTINF:3.480000') ||
-            line.includes('EXTINF:4.000000') ||
-            line.includes('EXTINF:0.960000') ||
-            line.includes('EXTINF:10.000000') ||
-            line.includes('EXTINF:1.266667'))
-        ) {
-          nextdelete = true;
-          continue;
-        }
+      // 如果是 EXTINF 行，检查下一行 URL 是否包含广告关键字
+      if (line.includes('#EXTINF:')) {
+        // 检查下一行 URL 是否包含广告关键字
+        if (i + 1 < lines.length) {
+          const nextLine = lines[i + 1];
+          const containsAdKeyword = adKeywords.some(keyword =>
+            nextLine.toLowerCase().includes(keyword.toLowerCase())
+          );
 
-        filteredLines.push(line);
+          if (containsAdKeyword) {
+            // 跳过 EXTINF 行和 URL 行
+            i += 2;
+            continue;
+          }
+        }
       }
+
+      // 保留当前行
+      filteredLines.push(line);
+      i++;
     }
 
     return filteredLines.join('\n');
